@@ -73,7 +73,7 @@ func updateMessageStatus(sms SMS) error {
 		log.Println("updateMessageStatus: ", err)
 		return err
 	}
-	stmt, err := tx.Prepare("UPDATE messages SET status=?, retries=?, device=?, updated_at=DATETIME('now') WHERE uuid=?")
+	stmt, err := tx.Prepare("UPDATE messages SET status=?, retries=?, device=?, updated_at=NOW() WHERE uuid=?")
 	if err != nil {
 		log.Println("updateMessageStatus: ", err)
 		return err
@@ -142,7 +142,7 @@ func GetMessages(filter string) ([]SMS, error) {
 func GetLast7DaysMessageCount() (map[string]int, error) {
 	log.Println("--- GetLast7DaysMessageCount")
 
-	rows, err := db.Query(`SELECT strftime('%Y-%m-%d', created_at) as datestamp,
+	rows, err := db.Query(`SELECT DATE_FORMAT( created_at,'%Y-%m-%d') as datestamp,
     COUNT(id) as messagecount FROM messages GROUP BY datestamp
     ORDER BY datestamp DESC LIMIT 7`)
 	if err != nil {
@@ -219,4 +219,42 @@ func getMessage(id string) (SMS, error) {
 		return sms, err
 	}	
 	return sms, nil
+}
+
+func getLastSMS() (int,string) {
+	
+	query := fmt.Sprintf("SELECT id,phone FROM sms WHERE status=0 ORDER BY id")
+	
+	var phone string
+	var id int
+	err := db.QueryRow(query).Scan(&id,&phone)
+	log.Println("getLastSMS Phone: ", phone)
+	log.Println("getLastSMS id: ", id)
+	if err != nil {
+		log.Println("getLastSMS: ", err)
+		return id,phone
+	}	
+	return id,phone
+}
+
+func updateSMSSent(id int) error {
+	log.Println("--- updateSMSSent ", id)
+	tx, err := db.Begin()
+	if err != nil {
+		log.Println("updateSMSSent: ", err)
+		return err
+	}
+	stmt, err := tx.Prepare("UPDATE sms SET status=1, last_send_date=NOW() WHERE id=?")
+	if err != nil {
+		log.Println("updateSMSSent: ", err)
+		return err
+	}
+	defer stmt.Close()
+	_, err = stmt.Exec(id)
+	if err != nil {
+		log.Println("updateSMSSent: ", err)
+		return err
+	}
+	tx.Commit()
+	return nil
 }

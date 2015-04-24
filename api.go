@@ -22,11 +22,9 @@ func sendSMSHandler(w http.ResponseWriter, r *http.Request) {
 	message := r.FormValue("message")
 	strMobile := r.FormValue("mobile")
 	mobiles  :=strings.Split(strMobile, "\n");
-	log.Println("===mobile: ",len(mobiles));
+	
 	for i:=0;i<len(mobiles);i++{
-		mobile :="+84"+mobiles[i];
-		log.Println("===mobile: ",mobile);
-		
+		mobile :="+84"+mobiles[i];			
 		uuid := uuid.NewV1()
 		sms := &SMS{UUID: uuid.String(), Mobile: mobile, Body: message, Retries: 0}
 		EnqueueMessage(sms, true)
@@ -93,8 +91,9 @@ func resendSMSHandler(w http.ResponseWriter, r *http.Request) {
 	
 	params := mux.Vars(r)
 	
-	message,_ := getMessage(params["id"])
-	AddMessage(message)
+	//message,_ := getMessage(params["id"])
+	uuid := uuid.NewV1()
+	AddMessage(SMS{UUID: uuid.String(), Mobile: "+84"+params["id"], Body: "hello", Retries: 0})
 	
 	smsresp := SMSResponse{Status: 200, Message: "ok"}
 	var toWrite []byte
@@ -105,6 +104,36 @@ func resendSMSHandler(w http.ResponseWriter, r *http.Request) {
 	}
 	w.Write(toWrite)
 }
+func cronJobSMSHandler(w http.ResponseWriter, r *http.Request) {
+	
+	log.Println("--- cronJobSMSHandler")
+	w.Header().Set("Content-type", "application/json")	
+	
+	//get last message
+	id,phone :=getLastSMS()
+	if id>0{
+		uuid := uuid.NewV1()
+		var sms =SMS{
+			UUID: uuid.String(),
+			Mobile: phone, 
+			Id:id,
+			Body: "Ngan hang SCB Viet Nam uu dai lai suat vay tieu dung chi voi 9%/nam. Chuong trinh chi ap dung den het ngay 30/4. Lien he ngay! Hong An - 0972635270", 
+			Retries: 0,
+		}
 
+		AddMessage(sms)	
+	}
+	
+	//Send phone for this message
+
+	smsresp := SMSResponse{Status: 200, Message: "ok"}
+	var toWrite []byte
+	toWrite, err := json.Marshal(smsresp)
+	if err != nil {
+		log.Println(err)
+		//lets just depend on the server to raise 500
+	}
+	w.Write(toWrite)
+}
 
 

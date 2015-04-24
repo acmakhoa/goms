@@ -14,14 +14,14 @@ const (
 type SMS struct {
 	UUID    string `json:"uuid"`
 	Mobile  string `json:"mobile"`
+	Id		int    `json:"id"`
 	Body    string `json:"body"`
 	Status  int    `json:"status"`
 	Retries int    `json:"retries"`
 	Device  string `json:"device"`
 }
 
-//TODO: should be configurable
-const SMSRetryLimit = 3
+
 
 var messages chan SMS
 var wakeupMessageLoader chan bool
@@ -34,7 +34,7 @@ var messageLoaderTimeout time.Duration
 var messageLoaderCountout int
 var messageLoaderLongTimeout time.Duration
 
-func InitWorker(bufferSize, bufferLow, loaderTimeout, countOut, loaderLongTimeout int) {
+func InitWorker(modems []*GSMModem, bufferSize, bufferLow, loaderTimeout, countOut, loaderLongTimeout int) {
 	log.Println("--- InitWorker")
 
 	bufferMaxSize = bufferSize
@@ -44,7 +44,23 @@ func InitWorker(bufferSize, bufferLow, loaderTimeout, countOut, loaderLongTimeou
 	messageLoaderLongTimeout = time.Duration(loaderLongTimeout) * time.Minute
 
 	messages = make(chan SMS, bufferMaxSize)
-	log.Println("--- make new chanel message")
+	wakeupMessageLoader = make(chan bool, 1)
+	wakeupMessageLoader <- true
+	messageCountSinceLastWakeup = 0
+	timeOfLastWakeup = time.Now().Add((time.Duration(loaderTimeout) * -1) * time.Minute) //older time handles the cold start state of the system
+
+	// its important to init messages channel before starting modems because nil
+	// channel is non-blocking
+	log.Println("receive message from channel")
+	for i := 0; i < len(modems); i++ {
+		modem := modems[i]
+		err := modem.Connect()
+		if err != nil {
+			log.Println("InitWorker: error connecting", modem.Devid, err)
+			continue
+		}
+		go modem.ProcessMessages()
+	}
 	go messageLoader(bufferMaxSize, bufferLowCount)
 }
 
@@ -81,13 +97,34 @@ func messageLoader(bufferSize, minFill int) {
 		   stalled in the system until someone knocks on the API door
 		   - we can afford a really long polling in this case
 		*/
-	
+		timeout := make(chan bool, 1)
+		go func() {
+			time.Sleep(messageLoaderLongTimeout)
+			timeout <- true
+		}()
+		log.Println("messageLoader: ", "waiting for wakeup call")
+		select {
+		case <-wakeupMessageLoader:
+			log.Println("messageLoader: woken up by channel call")
+		case <-timeout:
+			log.Println("messageLoader: woken up by timeout")
+		}
+		if len(messages) >= bufferLowCount {
+			//if we have sufficient number of messages to process,
+			//don't bother hitting the database
+			log.Println("messageLoader: ", "I have sufficient messages")
+			continue
+		}
 
-		log.Println("messageLoader: start receive message")
-		message := <-messages
-		log.Println("messageLoader: receive message :",message)
-
-		
+		countToFetch := bufferMaxSize - len(messages)
+		log.Println("messageLoader: ", "I need to fetch more messages", countToFetch)
+		pendingMsgs, err := getPendingMessages(countToFetch)
+		if err == nil {
+			log.Println("messageLoader: ", len(pendingMsgs), " pending messages found")
+			for _, msg := range pendingMsgs {
+				messages <- msg
+			}
+		}
 	}
 }
 

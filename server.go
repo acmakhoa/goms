@@ -63,6 +63,7 @@ func InitServer(host string, port string) error {
 	api := r.PathPrefix("/api").Subrouter()	
 	api.Methods("GET").Path("/logs/").HandlerFunc(getLogsHandler)
 	api.Methods("GET").Path("/sms/delete/{id:[0-9]+}").HandlerFunc(deleteSMSHandler)
+	api.Methods("GET").Path("/sms/send").HandlerFunc(cronJobSMSHandler)
 	api.Methods("GET").Path("/sms/resend/{id:[0-9]+}").HandlerFunc(resendSMSHandler)
 	api.Methods("POST").Path("/sms/").HandlerFunc(sendSMSHandler)
 
