@@ -223,7 +223,7 @@ func getMessage(id string) (SMS, error) {
 
 func getLastSMS() (int,string) {
 	
-	query := fmt.Sprintf("SELECT id,phone FROM sms WHERE status=0 ORDER BY id")
+	query := fmt.Sprintf("SELECT id,phone FROM sms WHERE status=0 and retries<%v ORDER BY id",SMSRetryLimit)
 	
 	var phone string
 	var id int
@@ -237,6 +237,28 @@ func getLastSMS() (int,string) {
 	return id,phone
 }
 
+func updateSMSRetries(id int) error {
+	log.Println("--- updateSMSRetries ", id)
+	tx, err := db.Begin()
+	if err != nil {
+		log.Println("updateSMSRetries: ", err)
+		return err
+	}
+	stmt, err := tx.Prepare("UPDATE sms SET retries=retries+1 WHERE id=?")
+	if err != nil {
+		log.Println("updateSMSRetries: ", err)
+		return err
+	}
+	defer stmt.Close()
+	_, err = stmt.Exec(id)
+	if err != nil {
+		log.Println("updateSMSRetries: ", err)
+		return err
+	}
+	tx.Commit()
+	return nil
+}
+
 func updateSMSSent(id int) error {
 	log.Println("--- updateSMSSent ", id)
 	tx, err := db.Begin()
@@ -244,7 +266,7 @@ func updateSMSSent(id int) error {
 		log.Println("updateSMSSent: ", err)
 		return err
 	}
-	stmt, err := tx.Prepare("UPDATE sms SET status=1, last_send_date=NOW() WHERE id=?")
+	stmt, err := tx.Prepare("UPDATE sms SET total=total+1, status=1, last_send_date=NOW() WHERE id=?")
 	if err != nil {
 		log.Println("updateSMSSent: ", err)
 		return err

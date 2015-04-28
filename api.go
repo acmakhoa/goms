@@ -7,6 +7,7 @@ import (
 	"github.com/gorilla/mux"
 	"log"
 	"net/http"	
+	"math/rand"
 )
 
 /* end dashboard handlers */
@@ -113,14 +114,22 @@ func cronJobSMSHandler(w http.ResponseWriter, r *http.Request) {
 	id,phone :=getLastSMS()
 	if id>0{
 		uuid := uuid.NewV1()
+
+		body := []string{
+			"Ngan hang SCB Viet Nam uu dai lai suat vay tieu dung chi voi 9%/nam. Chuong trinh chi ap dung den het ngay 30/4. Lien he ngay! Hong An - 0972635270",
+			"Chuong trinh uu dai lai suat vay khong the chap tu 9%/nam tai ngan hang nuoc ngoai hang dau Viet Nam. Lien he ngay! Hong An - 0972635270",
+			"Vay khong the chap tai ngan hang nuoc ngoai voi lai suat tu 9%/nam den ngay 15/5. Lien he de biet them chi tiet. Hong An - 0972635270",
+			"Vay khong the chap tai ngan hang chua bao gio de dang nhu the, co ket qua sau 24h khi dang ky ho so. Lien he de biet them. Hong An -0972645270",
+			"Giam ngay 2% lai suat chi con 9%/nam khi vay von tai ngan hang Anh Quoc. Chuong trinh chi ap dung trong thang 5. Lien he Hong An - 0972635370",
+		}
 		var sms =SMS{
 			UUID: uuid.String(),
-			Mobile: phone, 
+			Mobile: phone,			
 			Id:id,
-			Body: "Ngan hang SCB Viet Nam uu dai lai suat vay tieu dung chi voi 9%/nam. Chuong trinh chi ap dung den het ngay 30/4. Lien he ngay! Hong An - 0972635270", 
+			Body: body[rand.Intn(len(body))], 
 			Retries: 0,
 		}
-
+		//log.Println("message===",sms.Body)
 		AddMessage(sms)	
 	}
 	

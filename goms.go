@@ -8,7 +8,7 @@ import (
 )
 
 //TODO: should be configurable
-const SMSRetryLimit = 3
+const SMSRetryLimit = 2
 
 type GSMModem struct {
 	Port   string
@@ -104,7 +104,7 @@ func (m *GSMModem) ProcessMessages() {
 			// retry count is reached
 			// I can't push it to channel directly. Doing so may cause the sms to be in
 			// the queue twice. I don't want that
-			EnqueueMessage(&message, false)
+			updateSMSRetries(message.Id)
 		}
 		time.Sleep(3000 * time.Microsecond)
 	}
